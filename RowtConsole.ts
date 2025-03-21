@@ -177,6 +177,39 @@ class RowtConsole {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
   }
+
+  /**
+   * Fetches links by project ID.
+   */
+  async getLinksByProjectId(
+    projectId: string,
+    includeInteractions: boolean = false,
+  ): Promise<any> {
+    if (!projectId) {
+      throw new Error("Missing projectId");
+    }
+
+    try {
+      const payload = { projectId, includeInteractions };
+      console.log("Sending payload:", payload); // Log the payload
+      const response: AxiosResponse = await this.authenticatedRequest(
+        "post",
+        "/link/byProjectId",
+        payload,
+      );
+      console.log(response.data);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error(error);
+        throw new Error(
+          error.response?.data.message || "Failed to fetch links",
+        );
+      }
+      console.error(error);
+      throw new Error("An unknown error occurred while fetching links");
+    }
+  }
 }
 
 export default RowtConsole;
