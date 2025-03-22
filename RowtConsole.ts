@@ -1,25 +1,13 @@
-import axios, { AxiosInstance, AxiosResponse, AxiosError } from "axios";
-
-interface LoginDTO {
-  email: string;
-  password: string;
-}
-
-interface Tokens {
-  access_token: string;
-  refresh_token: string;
-}
-
-interface UpdatePasswordDTO {
-  email: string;
-  password: string;
-}
-
-interface UserProfile {
-  id: string;
-  email: string;
-  role: string;
-}
+import axios, { AxiosInstance, AxiosResponse } from "axios";
+import {
+  RowtGetProjectOptions,
+  RowtLoginDTO,
+  RowtLoginResponseDTO,
+  RowtProject,
+  RowtTokens,
+  RowtUpdatePasswordDTO,
+  RowtUser,
+} from "./types";
 
 class RowtConsole {
   private client: AxiosInstance;
@@ -82,14 +70,13 @@ class RowtConsole {
   /**
    * Logs in and stores tokens in localStorage.
    */
-  async login(credentials: LoginDTO): Promise<string> {
+  async login(credentials: RowtLoginDTO): Promise<RowtUser> {
     try {
-      const response: AxiosResponse<Tokens> = await this.client.post(
-        "/auth/login",
-        credentials,
-      );
-      this.storeTokens(response.data);
-      return "success";
+      const response: AxiosResponse<RowtLoginResponseDTO> =
+        await this.client.post("/auth/login", credentials);
+      console.log(response.data);
+      this.storeTokens(response.data.tokens);
+      return response.data.user;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         throw new Error(error.response?.data.message || "Login failed");
@@ -111,6 +98,26 @@ class RowtConsole {
   }
 
   /**
+   * Creates a new user with the given email and password.
+   */
+  async createUser(email: string, password: string): Promise<RowtUser> {
+    try {
+      const response: AxiosResponse<RowtUser> = await this.client.post(
+        "/auth/signup",
+        { email, password },
+      );
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          error.response?.data.message || "Failed to create user",
+        );
+      }
+      throw new Error("An unknown error occurred while creating user");
+    }
+  }
+
+  /**
    * Refreshes the access token and stores the new tokens.
    */
   private async refreshToken(): Promise<void> {
@@ -118,7 +125,7 @@ class RowtConsole {
       const refreshToken = localStorage.getItem("refresh_token");
       if (!refreshToken) throw new Error("No refresh token available");
 
-      const response: AxiosResponse<Tokens> = await this.client.post(
+      const response: AxiosResponse<RowtTokens> = await this.client.post(
         "/auth/refresh",
         { refresh_token: refreshToken },
       );
@@ -131,19 +138,23 @@ class RowtConsole {
   }
 
   /**
-   * Fetches the user's profile.
+   * Fetches the user's  .
    */
-  async getProfile(): Promise<UserProfile> {
-    const response: AxiosResponse<UserProfile> =
-      await this.authenticatedRequest("get", "/auth/profile");
+  async getProfile(): Promise<RowtUser> {
+    const response: AxiosResponse<RowtUser> = await this.authenticatedRequest(
+      "get",
+      "/auth/ ",
+    );
     return response.data;
   }
   /**
-   * Fetches the  Current user's profile.
+   * Fetches the  Current User.
    */
-  async getCurrentUserProfile(): Promise<UserProfile> {
-    const response: AxiosResponse<UserProfile> =
-      await this.authenticatedRequest("get", "/users/currentUserProfile");
+  async getCurrentUser(): Promise<RowtUser> {
+    const response: AxiosResponse<RowtUser> = await this.authenticatedRequest(
+      "get",
+      "/users/currentUser",
+    );
     return response.data;
   }
 
@@ -151,21 +162,20 @@ class RowtConsole {
    * Updates the user's password.
    */
   async updatePassword(
-    updatePasswordDTO: UpdatePasswordDTO,
-  ): Promise<UserProfile> {
-    const response: AxiosResponse<UserProfile> =
-      await this.authenticatedRequest(
-        "post",
-        "/auth/updatepassword",
-        updatePasswordDTO,
-      );
+    updatePasswordDTO: RowtUpdatePasswordDTO,
+  ): Promise<RowtUser> {
+    const response: AxiosResponse<RowtUser> = await this.authenticatedRequest(
+      "post",
+      "/auth/updatepassword",
+      updatePasswordDTO,
+    );
     return response.data;
   }
 
   /**
    * Stores tokens in localStorage.
    */
-  private storeTokens(tokens: Tokens) {
+  private storeTokens(tokens: RowtTokens) {
     localStorage.setItem("access_token", tokens.access_token);
     localStorage.setItem("refresh_token", tokens.refresh_token);
   }
@@ -208,6 +218,38 @@ class RowtConsole {
       }
       console.error(error);
       throw new Error("An unknown error occurred while fetching links");
+    }
+  }
+
+  async getProjectById(
+    projectId: string,
+    options: RowtGetProjectOptions,
+  ): Promise<RowtProject> {
+    if (!projectId) {
+      throw new Error("Missing projectId");
+    }
+
+    const defaultOptions: RowtGetProjectOptions = {
+      includeLinks: false,
+      includeInteractions: false,
+      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+      endDate: new Date(), // now
+    };
+
+    const mergedOptions = { ...defaultOptions, ...options };
+
+    try {
+      const payload = { id: projectId, options: mergedOptions };
+      const response: AxiosResponse<RowtProject> =
+        await this.authenticatedRequest("post", `/projects/getById`, payload);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          error.response?.data.message || "Failed to fetch project",
+        );
+      }
+      throw new Error("An unknown error occurred while fetching project");
     }
   }
 }
