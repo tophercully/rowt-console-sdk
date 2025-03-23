@@ -55,6 +55,7 @@ export interface RowtGetProjectOptions {
   includeInteractions?: boolean;
   startDate?: Date;
   endDate?: Date;
+  getPreviousPeriod?: boolean;
 }
 
 export interface RowtProject {
@@ -66,5 +67,6 @@ export interface RowtProject {
   playStoreId?: string;
   userId: string;
   links?: RowtLink[];
+  previousPeriodInteractionCount?: number;
   interactions?: RowtInteraction[];
 }
