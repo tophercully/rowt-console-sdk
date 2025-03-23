@@ -42,27 +42,28 @@ class RowtConsole {
     try {
       const response = await this.client.request({ method, url, data });
       return response;
-    } catch (error) {
+    } catch (error: any) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         if (!this.isRefreshing) {
           this.isRefreshing = true;
+          console.log("Attempting to refresh token...");
           try {
             await this.refreshToken();
             this.isRefreshing = false;
 
             // Retry the original request with new token
+            console.log("Session Refreshed - Retrying original request...");
             return this.client.request({ method, url, data });
           } catch (refreshError) {
             this.isRefreshing = false;
             this.logout();
-            throw new Error("Session expired. Please log in again.");
+            throw new Error(
+              "Session expired, could not refresh. Please log in again.",
+            );
           }
         }
       }
 
-      if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data.message || "Request failed");
-      }
       throw new Error("An unknown error occurred");
     }
   }
@@ -243,13 +244,10 @@ class RowtConsole {
       const response: AxiosResponse<RowtProject> =
         await this.authenticatedRequest("post", `/projects/getById`, payload);
       return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data.message || "Failed to fetch project",
-        );
-      }
-      throw new Error("An unknown error occurred while fetching project");
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data.message || "Failed to fetch project",
+      );
     }
   }
 }

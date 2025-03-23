@@ -9,6 +9,7 @@ export interface RowtLink {
   properties: Record<string, any>;
   lifetimeClicks: number;
   interactions?: RowtInteraction[];
+  createdAt: Date;
 }
 
 export interface RowtInteraction {
