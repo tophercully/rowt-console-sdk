@@ -16,7 +16,7 @@ export interface RowtInteraction {
   id: string;
   link: RowtLink;
   referer?: string;
-  ip?: string;
+  country?: string;
   device?: string;
   os?: string;
   browser?: string;
