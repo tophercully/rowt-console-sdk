@@ -64,7 +64,7 @@ class RowtConsole {
         }
       }
 
-      throw new Error("An unknown error occurred");
+      throw error;
     }
   }
 
@@ -245,9 +245,7 @@ class RowtConsole {
         await this.authenticatedRequest("post", `/projects/getById`, payload);
       return response.data;
     } catch (error: any) {
-      throw new Error(
-        error.response?.data.message || "Failed to fetch project",
-      );
+      throw error;
     }
   }
 }
