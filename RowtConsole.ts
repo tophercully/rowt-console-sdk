@@ -44,26 +44,57 @@ class RowtConsole {
       return response;
     } catch (error: any) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        if (!this.isRefreshing) {
-          this.isRefreshing = true;
-          console.log("Attempting to refresh token...");
-          try {
-            await this.refreshToken();
-            this.isRefreshing = false;
-
-            // Retry the original request with new token
-            console.log("Session Refreshed - Retrying original request...");
-            return this.client.request({ method, url, data });
-          } catch (refreshError) {
-            this.isRefreshing = false;
-            this.logout();
-            throw new Error(
-              "Session expired, could not refresh. Please log in again.",
-            );
-          }
-        }
+        // Use a Promise-based synchronization mechanism
+        return this.handleTokenRefresh(() =>
+          this.client.request({ method, url, data }),
+        );
       }
 
+      throw error;
+    }
+  }
+
+  private async handleTokenRefresh<T>(
+    retryRequest: () => Promise<T>,
+  ): Promise<T> {
+    // Ensure only one refresh happens at a time
+    if (this.isRefreshing) {
+      // Wait for the ongoing refresh to complete
+      await new Promise<void>((resolve) => {
+        const checkRefreshStatus = () => {
+          if (!this.isRefreshing) {
+            resolve();
+          } else {
+            setTimeout(checkRefreshStatus, 100);
+          }
+        };
+        checkRefreshStatus();
+      });
+
+      // Retry the original request
+      return retryRequest();
+    }
+
+    try {
+      // Prevent multiple simultaneous refreshes
+      this.isRefreshing = true;
+
+      try {
+        await this.refreshToken();
+      } catch (refreshError) {
+        // Clear tokens on refresh failure
+        this.clearTokens();
+        throw new Error("Session expired. Please log in again.");
+      } finally {
+        // Ensure isRefreshing is reset
+        this.isRefreshing = false;
+      }
+
+      // Retry the original request
+      return retryRequest();
+    } catch (error) {
+      // Clear tokens if retry fails
+      this.clearTokens();
       throw error;
     }
   }
@@ -91,7 +122,17 @@ class RowtConsole {
    */
   async logout(): Promise<string> {
     try {
-      await this.authenticatedRequest("post", "/auth/logout");
+      const tokens = {
+        access_token: localStorage.getItem("access_token"),
+        refresh_token: localStorage.getItem("refresh_token"),
+      };
+
+      await this.client.post("/auth/logout", tokens, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: undefined, // Ensure this request is unauthenticated
+        },
+      });
     } finally {
       this.clearTokens();
       return "Logout successful";
@@ -123,18 +164,39 @@ class RowtConsole {
    */
   private async refreshToken(): Promise<void> {
     try {
+      console.log("Refreshing token...");
       const refreshToken = localStorage.getItem("refresh_token");
-      if (!refreshToken) throw new Error("No refresh token available");
+      if (!refreshToken) {
+        throw new Error("No refresh token available");
+      }
 
       const response: AxiosResponse<RowtTokens> = await this.client.post(
         "/auth/refresh",
         { refresh_token: refreshToken },
+        {
+          // Bypass the usual interceptors for this request
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: undefined,
+          },
+        },
       );
 
-      this.storeTokens(response.data);
+      // Validate and store new tokens
+      const { access_token, refresh_token } = response.data;
+      if (!access_token || !refresh_token) {
+        throw new Error("Invalid token response");
+      }
+
+      this.storeTokens({
+        access_token,
+        refresh_token,
+      });
+      console.log("Token refreshed successfully");
     } catch (error) {
+      console.error("Token refresh failed:", error);
       this.clearTokens();
-      throw new Error("Failed to refresh token");
+      throw error;
     }
   }
 
