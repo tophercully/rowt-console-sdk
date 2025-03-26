@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse } from "axios";
+import axios, { AxiosInstance, AxiosResponse, AxiosRequestConfig } from "axios";
 import {
   RowtGetProjectOptions,
   RowtLoginDTO,
@@ -11,7 +11,8 @@ import {
 
 class RowtConsole {
   private client: AxiosInstance;
-  private refreshPromise: Promise<void> | null = null; // Single source of truth for refresh state
+  private isRefreshing = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
 
   constructor(baseURL: string) {
     this.client = axios.create({
@@ -21,7 +22,7 @@ class RowtConsole {
       },
     });
 
-    // Attach the token interceptor
+    // Request interceptor to attach token
     this.client.interceptors.request.use((config) => {
       const token = localStorage.getItem("access_token");
       if (token) {
@@ -29,65 +30,57 @@ class RowtConsole {
       }
       return config;
     });
+
+    // Response interceptor to handle 401 errors
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const { config, response } = error;
+        if (response && response.status === 401 && !config._retry) {
+          console.log("401 detected, initiating token refresh...");
+          config._retry = true;
+
+          if (!this.isRefreshing) {
+            this.isRefreshing = true;
+            console.log("Refreshing token...");
+            this.refreshToken()
+              .then((newToken) => {
+                console.log("Token refresh successful.");
+                this.onRefreshed(newToken);
+              })
+              .catch(() => {
+                console.log("Token refresh failed, clearing tokens.");
+                this.clearTokens();
+              })
+              .finally(() => {
+                this.isRefreshing = false;
+              });
+          }
+
+          return new Promise((resolve, reject) => {
+            this.subscribeTokenRefresh((token: string) => {
+              console.log("Retrying request with new token...");
+              config.headers.Authorization = `Bearer ${token}`;
+              resolve(this.client(config));
+            });
+          });
+        }
+
+        return Promise.reject(error);
+      },
+    );
   }
 
-  /**
-   * Handles API requests with automatic token refresh on 401 errors.
-   */
-  private async authenticatedRequest(
-    method: "get" | "post" | "put" | "delete",
-    url: string,
-    data?: any,
-  ): Promise<AxiosResponse> {
-    try {
-      const response = await this.client.request({ method, url, data });
-      return response;
-    } catch (error: any) {
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        // Use a Promise-based synchronization mechanism
-        return this.handleTokenRefresh(() =>
-          this.client.request({ method, url, data }),
-        );
-      }
-
-      throw error;
-    }
+  private subscribeTokenRefresh(callback: (token: string) => void) {
+    this.refreshSubscribers.push(callback);
   }
 
-  private async handleTokenRefresh<T>(
-    retryRequest: () => Promise<T>,
-  ): Promise<T> {
-    // If refresh is already in progress, wait for it
-    if (this.refreshPromise) {
-      try {
-        await this.refreshPromise;
-        return retryRequest();
-      } catch {
-        throw new Error("Session expired");
-      }
-    }
-
-    try {
-      console.log("Refreshing token...");
-      this.refreshPromise = this.refreshToken();
-      await this.refreshPromise;
-      if (!this.refreshPromise) {
-        throw new Error("Token refresh failed");
-      }
-      return retryRequest();
-    } catch (error) {
-      this.clearTokens();
-      throw new Error("Session expired. Please log in again.");
-    } finally {
-      this.refreshPromise = null;
-      console.log("Token refreshed successfully");
-    }
+  private onRefreshed(newToken: string) {
+    this.refreshSubscribers.forEach((callback) => callback(newToken));
+    this.refreshSubscribers = [];
   }
 
-  /**
-   * Refreshes the access token and stores the new tokens.
-   */
-  private async refreshToken(): Promise<void> {
+  private async refreshToken(): Promise<string> {
     const refreshToken = localStorage.getItem("refresh_token");
     if (!refreshToken) {
       throw new Error("No refresh token available");
@@ -109,33 +102,23 @@ class RowtConsole {
       throw new Error("Invalid token response");
     }
 
-    this.storeTokens({
-      access_token,
-      refresh_token,
-    });
+    localStorage.setItem("access_token", access_token);
+    localStorage.setItem("refresh_token", refresh_token);
+    return access_token;
   }
 
-  /**
-   * Logs in and stores tokens in localStorage.
-   */
+  private clearTokens() {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+  }
+
   async login(credentials: RowtLoginDTO): Promise<RowtUser> {
-    try {
-      const response: AxiosResponse<RowtLoginResponseDTO> =
-        await this.client.post("/auth/login", credentials);
-      console.log(response.data);
-      this.storeTokens(response.data.tokens);
-      return response.data.user;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data.message || "Login failed");
-      }
-      throw new Error("An unknown error occurred during login");
-    }
+    const response: AxiosResponse<RowtLoginResponseDTO> =
+      await this.client.post("/auth/login", credentials);
+    this.storeTokens(response.data.tokens);
+    return response.data.user;
   }
 
-  /**
-   * Logs out the user and removes tokens.
-   */
   async logout(): Promise<string> {
     try {
       const tokens = {
@@ -146,7 +129,7 @@ class RowtConsole {
       await this.client.post("/auth/logout", tokens, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: undefined, // Ensure this request is unauthenticated
+          Authorization: undefined,
         },
       });
     } finally {
@@ -155,80 +138,39 @@ class RowtConsole {
     }
   }
 
-  /**
-   * Creates a new user with the given email and password.
-   */
   async createUser(email: string, password: string): Promise<RowtUser> {
-    try {
-      const response: AxiosResponse<RowtUser> = await this.client.post(
-        "/auth/signup",
-        { email, password },
-      );
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data.message || "Failed to create user",
-        );
-      }
-      throw new Error("An unknown error occurred while creating user");
-    }
+    const response: AxiosResponse<RowtUser> = await this.client.post(
+      "/auth/signup",
+      {
+        email,
+        password,
+      },
+    );
+    return response.data;
   }
 
-  /**
-   * Fetches the user's  .
-   */
   async getProfile(): Promise<RowtUser> {
-    const response: AxiosResponse<RowtUser> = await this.authenticatedRequest(
-      "get",
-      "/auth/ ",
-    );
-    return response.data;
-  }
-  /**
-   * Fetches the  Current User.
-   */
-  async getCurrentUser(): Promise<RowtUser> {
-    const response: AxiosResponse<RowtUser> = await this.authenticatedRequest(
-      "get",
-      "/users/currentUser",
-    );
+    const response: AxiosResponse<RowtUser> =
+      await this.client.get("/auth/profile");
     return response.data;
   }
 
-  /**
-   * Updates the user's password.
-   */
+  async getCurrentUser(): Promise<RowtUser> {
+    const response: AxiosResponse<RowtUser> =
+      await this.client.get("/users/currentUser");
+    return response.data;
+  }
+
   async updatePassword(
     updatePasswordDTO: RowtUpdatePasswordDTO,
   ): Promise<RowtUser> {
-    const response: AxiosResponse<RowtUser> = await this.authenticatedRequest(
-      "post",
+    const response: AxiosResponse<RowtUser> = await this.client.post(
       "/auth/updatepassword",
       updatePasswordDTO,
     );
     return response.data;
   }
 
-  /**
-   * Stores tokens in localStorage.
-   */
-  private storeTokens(tokens: RowtTokens) {
-    localStorage.setItem("access_token", tokens.access_token);
-    localStorage.setItem("refresh_token", tokens.refresh_token);
-  }
-
-  /**
-   * Clears tokens from localStorage.
-   */
-  private clearTokens() {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-  }
-
-  /**
-   * Fetches links by project ID.
-   */
   async getLinksByProjectId(
     projectId: string,
     includeInteractions: boolean = false,
@@ -237,26 +179,12 @@ class RowtConsole {
       throw new Error("Missing projectId");
     }
 
-    try {
-      const payload = { projectId, includeInteractions };
-      console.log("Sending payload:", payload); // Log the payload
-      const response: AxiosResponse = await this.authenticatedRequest(
-        "post",
-        "/link/byProjectId",
-        payload,
-      );
-      console.log(response.data);
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error(error);
-        throw new Error(
-          error.response?.data.message || "Failed to fetch links",
-        );
-      }
-      console.error(error);
-      throw new Error("An unknown error occurred while fetching links");
-    }
+    const payload = { projectId, includeInteractions };
+    const response: AxiosResponse = await this.client.post(
+      "/link/byProjectId",
+      payload,
+    );
+    return response.data;
   }
 
   async getProjectById(
@@ -270,20 +198,22 @@ class RowtConsole {
     const defaultOptions: RowtGetProjectOptions = {
       includeLinks: false,
       includeInteractions: false,
-      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-      endDate: new Date(), // now
+      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      endDate: new Date(),
     };
 
     const mergedOptions = { ...defaultOptions, ...options };
+    const payload = { id: projectId, options: mergedOptions };
+    const response: AxiosResponse<RowtProject> = await this.client.post(
+      `/projects/getById`,
+      payload,
+    );
+    return response.data;
+  }
 
-    try {
-      const payload = { id: projectId, options: mergedOptions };
-      const response: AxiosResponse<RowtProject> =
-        await this.authenticatedRequest("post", `/projects/getById`, payload);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+  private storeTokens(tokens: RowtTokens) {
+    localStorage.setItem("access_token", tokens.access_token);
+    localStorage.setItem("refresh_token", tokens.refresh_token);
   }
 }
 
