@@ -11,7 +11,7 @@ import {
 
 class RowtConsole {
   private client: AxiosInstance;
-  private isRefreshing = false;
+  private refreshPromise: Promise<void> | null = null; // Single source of truth for refresh state
 
   constructor(baseURL: string) {
     this.client = axios.create({
@@ -57,46 +57,62 @@ class RowtConsole {
   private async handleTokenRefresh<T>(
     retryRequest: () => Promise<T>,
   ): Promise<T> {
-    // Ensure only one refresh happens at a time
-    if (this.isRefreshing) {
-      // Wait for the ongoing refresh to complete
-      await new Promise<void>((resolve) => {
-        const checkRefreshStatus = () => {
-          if (!this.isRefreshing) {
-            resolve();
-          } else {
-            setTimeout(checkRefreshStatus, 100);
-          }
-        };
-        checkRefreshStatus();
-      });
-
-      // Retry the original request
-      return retryRequest();
+    // If refresh is already in progress, wait for it
+    if (this.refreshPromise) {
+      try {
+        await this.refreshPromise;
+        return retryRequest();
+      } catch {
+        throw new Error("Session expired");
+      }
     }
 
     try {
-      // Prevent multiple simultaneous refreshes
-      this.isRefreshing = true;
-
-      try {
-        await this.refreshToken();
-      } catch (refreshError) {
-        // Clear tokens on refresh failure
-        this.clearTokens();
-        throw new Error("Session expired. Please log in again.");
-      } finally {
-        // Ensure isRefreshing is reset
-        this.isRefreshing = false;
+      console.log("Refreshing token...");
+      this.refreshPromise = this.refreshToken();
+      await this.refreshPromise;
+      if (!this.refreshPromise) {
+        throw new Error("Token refresh failed");
       }
-
-      // Retry the original request
       return retryRequest();
     } catch (error) {
-      // Clear tokens if retry fails
       this.clearTokens();
-      throw error;
+      throw new Error("Session expired. Please log in again.");
+    } finally {
+      this.refreshPromise = null;
+      console.log("Token refreshed successfully");
     }
+  }
+
+  /**
+   * Refreshes the access token and stores the new tokens.
+   */
+  private async refreshToken(): Promise<void> {
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (!refreshToken) {
+      throw new Error("No refresh token available");
+    }
+
+    const response = await this.client.post<RowtTokens>(
+      "/auth/refresh",
+      { refresh_token: refreshToken },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: undefined,
+        },
+      },
+    );
+
+    const { access_token, refresh_token } = response.data;
+    if (!access_token || !refresh_token) {
+      throw new Error("Invalid token response");
+    }
+
+    this.storeTokens({
+      access_token,
+      refresh_token,
+    });
   }
 
   /**
@@ -156,47 +172,6 @@ class RowtConsole {
         );
       }
       throw new Error("An unknown error occurred while creating user");
-    }
-  }
-
-  /**
-   * Refreshes the access token and stores the new tokens.
-   */
-  private async refreshToken(): Promise<void> {
-    try {
-      console.log("Refreshing token...");
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (!refreshToken) {
-        throw new Error("No refresh token available");
-      }
-
-      const response: AxiosResponse<RowtTokens> = await this.client.post(
-        "/auth/refresh",
-        { refresh_token: refreshToken },
-        {
-          // Bypass the usual interceptors for this request
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: undefined,
-          },
-        },
-      );
-
-      // Validate and store new tokens
-      const { access_token, refresh_token } = response.data;
-      if (!access_token || !refresh_token) {
-        throw new Error("Invalid token response");
-      }
-
-      this.storeTokens({
-        access_token,
-        refresh_token,
-      });
-      console.log("Token refreshed successfully");
-    } catch (error) {
-      console.error("Token refresh failed:", error);
-      this.clearTokens();
-      throw error;
     }
   }
 
