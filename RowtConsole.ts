@@ -215,6 +215,13 @@ class RowtConsole {
     localStorage.setItem("access_token", tokens.access_token);
     localStorage.setItem("refresh_token", tokens.refresh_token);
   }
+
+  async getUserProjects(): Promise<RowtProject[]> {
+    const response: AxiosResponse<RowtProject[]> = await this.client.post(
+      "/projects/getUserProjects",
+    );
+    return response.data;
+  }
 }
 
 export default RowtConsole;
