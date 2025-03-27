@@ -60,12 +60,15 @@ export interface RowtGetProjectOptions {
 
 export interface RowtProject {
   id: string;
+  apiKey: string;
+  userId: string;
   name: string;
   baseUrl: string;
   fallbackUrl: string;
-  appStoreId?: string;
-  playStoreId?: string;
-  userId: string;
+  appstoreId?: string;
+  playstoreId?: string;
+  iosUriScheme?: string;
+  androidUriScheme?: string;
   links?: RowtLink[];
   previousPeriodInteractionCount?: number;
   interactions?: RowtInteraction[];

@@ -189,7 +189,7 @@ class RowtConsole {
 
   async getProjectById(
     projectId: string,
-    options: RowtGetProjectOptions,
+    options?: RowtGetProjectOptions,
   ): Promise<RowtProject> {
     if (!projectId) {
       throw new Error("Missing projectId");
