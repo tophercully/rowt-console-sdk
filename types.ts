@@ -86,3 +86,9 @@ export interface UpdateProjectDTO {
   iosUriScheme?: string;
   androidUriScheme?: string;
 }
+export interface CreateProjectDTO {
+  userId: string;
+  name: string;
+  baseUrl: string;
+  fallbackUrl: string;
+}

@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosRequestConfig } from "axios";
 import {
+  CreateProjectDTO,
   RowtGetProjectOptions,
   RowtLoginDTO,
   RowtLoginResponseDTO,
@@ -228,6 +229,14 @@ class RowtConsole {
     console.log("Updating project:", project);
     const response: AxiosResponse<RowtProject> = await this.client.post(
       `/projects/update`,
+      project,
+    );
+    return response.data;
+  }
+
+  async createProject(project: CreateProjectDTO): Promise<RowtProject> {
+    const response: AxiosResponse<RowtProject> = await this.client.post(
+      `/projects/create`,
       project,
     );
     return response.data;
