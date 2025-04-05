@@ -73,3 +73,16 @@ export interface RowtProject {
   previousPeriodInteractionCount?: number;
   interactions?: RowtInteraction[];
 }
+
+export interface UpdateProjectDTO {
+  id: string;
+  apiKey: string;
+  userId: string;
+  name: string;
+  baseUrl: string;
+  fallbackUrl: string;
+  appstoreId?: string;
+  playstoreId?: string;
+  iosUriScheme?: string;
+  androidUriScheme?: string;
+}

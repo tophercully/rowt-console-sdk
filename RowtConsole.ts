@@ -7,6 +7,7 @@ import {
   RowtTokens,
   RowtUpdatePasswordDTO,
   RowtUser,
+  UpdateProjectDTO,
 } from "./types";
 
 class RowtConsole {
@@ -219,6 +220,15 @@ class RowtConsole {
   async getUserProjects(): Promise<RowtProject[]> {
     const response: AxiosResponse<RowtProject[]> = await this.client.post(
       "/projects/getUserProjects",
+    );
+    return response.data;
+  }
+
+  async updateProject(project: UpdateProjectDTO): Promise<RowtProject> {
+    console.log("Updating project:", project);
+    const response: AxiosResponse<RowtProject> = await this.client.post(
+      `/projects/update`,
+      project,
     );
     return response.data;
   }
