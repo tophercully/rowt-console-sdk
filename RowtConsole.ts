@@ -140,6 +140,18 @@ class RowtConsole {
     }
   }
 
+  async validateUser(RowtLoginDTO: RowtLoginDTO): Promise<boolean> {
+    console.log("Validating user with credentials:", RowtLoginDTO);
+    const response: AxiosResponse<{ isValid: boolean }> =
+      await this.client.post("/auth/validate", RowtLoginDTO);
+    console.log("Validation response:", response.data);
+    const { isValid } = response.data;
+
+    console.log("User validation result:", isValid);
+
+    return isValid;
+  }
+
   async createUser(email: string, password: string): Promise<RowtUser> {
     const response: AxiosResponse<RowtUser> = await this.client.post(
       "/auth/signup",
