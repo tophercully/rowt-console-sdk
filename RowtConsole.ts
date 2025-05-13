@@ -253,6 +253,19 @@ class RowtConsole {
     );
     return response.data;
   }
+
+  async regenerateApiKey(projectId: string): Promise<string> {
+    if (!projectId) {
+      throw new Error("Missing projectId");
+    }
+
+    const response: AxiosResponse<{ apiKey: string }> = await this.client.post(
+      "/projects/generateApiKey",
+      { projectId },
+    );
+
+    return response.data.apiKey;
+  }
 }
 
 export default RowtConsole;
