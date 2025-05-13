@@ -67,8 +67,8 @@ export interface RowtProject {
   fallbackUrl: string;
   appstoreId?: string;
   playstoreId?: string;
-  iosUriScheme?: string;
-  androidUriScheme?: string;
+  iosScheme?: string;
+  androidScheme?: string;
   links?: RowtLink[];
   previousPeriodInteractionCount?: number;
   interactions?: RowtInteraction[];
@@ -83,8 +83,8 @@ export interface UpdateProjectDTO {
   fallbackUrl: string;
   appstoreId?: string;
   playstoreId?: string;
-  iosUriScheme?: string;
-  androidUriScheme?: string;
+  iosScheme?: string;
+  androidScheme?: string;
 }
 export interface CreateProjectDTO {
   userId: string;
