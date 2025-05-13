@@ -43,6 +43,7 @@ export interface RowtUser {
   email: string;
   role: string;
   emailVerified: boolean;
+  customerId?: string;
 }
 
 export interface RowtLoginResponseDTO {
@@ -91,4 +92,17 @@ export interface CreateProjectDTO {
   name: string;
   baseUrl: string;
   fallbackUrl: string;
+}
+
+export interface UsageStats {
+  links: number;
+  interactions: number;
+}
+
+export interface TierStats {
+  tier: number;
+  allowances: {
+    links: number;
+    interactions: number;
+  };
 }

@@ -8,6 +8,7 @@ import {
   RowtTokens,
   RowtUpdatePasswordDTO,
   RowtUser,
+  TierStats,
   UpdateProjectDTO,
 } from "./types";
 
@@ -265,6 +266,18 @@ class RowtConsole {
     );
 
     return response.data.apiKey;
+  }
+
+  async getUserUsage(
+    userId: string,
+  ): Promise<{ links: number; interactions: number }> {
+    const response = await this.client.post("/users/usage", { userId });
+    return response.data;
+  }
+
+  async getUserTier(userId: string): Promise<TierStats> {
+    const response = await this.client.post("/users/tier", { userId });
+    return response.data;
   }
 }
 
