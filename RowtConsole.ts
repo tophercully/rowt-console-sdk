@@ -155,7 +155,7 @@ class RowtConsole {
 
   async createUser(email: string, password: string): Promise<RowtUser> {
     const response: AxiosResponse<RowtUser> = await this.client.post(
-      "/auth/signup",
+      "/users/create",
       {
         email,
         password,
