@@ -43,7 +43,7 @@ export interface RowtUser {
   email: string;
   role: string;
   emailVerified: boolean;
-  customerId?: string;
+  customerId: string;
 }
 
 export interface RowtLoginResponseDTO {
