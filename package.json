@@ -1,4 +1,31 @@
 {
+  "name": "rowt-console-sdk",
+  "version": "0.0.1",
+  "description": "SDK for interacting with Rowt Server API from a client-side application.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "rowt",
+    "sdk",
+    "console",
+    "dashboard",
+    "deeplinking",
+    "analytics",
+    "auth",
+    "JWT",
+    "authentication",
+    "stripe",
+    "web"
+  ],
+  "author": "Chris McCully",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.13.10",
     "typescript": "^5.8.2"
