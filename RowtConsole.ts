@@ -10,6 +10,7 @@ import {
   RowtUser,
   TierStats,
   UpdateProjectDTO,
+  UsageStats,
 } from "./types";
 
 class RowtConsole {
@@ -268,9 +269,7 @@ class RowtConsole {
     return response.data.apiKey;
   }
 
-  async getUserUsage(
-    userId: string,
-  ): Promise<{ links: number; interactions: number }> {
+  async getUserUsage(userId: string): Promise<UsageStats> {
     const response = await this.client.post("/users/usage", { userId });
     return response.data;
   }

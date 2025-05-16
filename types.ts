@@ -97,6 +97,10 @@ export interface CreateProjectDTO {
 export interface UsageStats {
   links: number;
   interactions: number;
+  period: {
+    start: Date;
+    end: Date;
+  };
 }
 
 export interface TierStats {
